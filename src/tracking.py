@@ -29,7 +29,7 @@ def init_mlflow(experiment_name: str) -> str:
         os.environ["MLFLOW_TRACKING_PASSWORD"] = token
         mlflow.set_tracking_uri(tracking_uri)
     else:
-        tracking_uri = "mlruns"
+        tracking_uri = "/tmp/mlruns"
         mlflow.set_tracking_uri(tracking_uri)
 
     mlflow.set_experiment(experiment_name)
