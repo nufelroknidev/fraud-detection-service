@@ -103,6 +103,16 @@ def health():
     }
 
 
+@app.get("/metrics")
+def metrics():
+    """Exposes the active decision thresholds for observability / dashboards."""
+    return {
+        "threshold_f1_opt":   _state.get("threshold_f1_opt"),
+        "threshold_recall80": _state.get("threshold_recall80"),
+        "model_loaded":       "pipeline" in _state,
+    }
+
+
 @app.post("/predict", response_model=PredictResponse)
 def predict(request: PredictRequest):
     pipeline = _state.get("pipeline")

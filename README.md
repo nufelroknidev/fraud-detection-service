@@ -10,12 +10,13 @@
 |--------|-------|
 | ROC-AUC | 0.9476 |
 | PR-AUC | 0.2214 |
-| Gini coefficient | 0.895 |
+| Gini coefficient | 0.8952 (target > 0.60) |
+| KS statistic | 0.7735 |
 | F1-optimal threshold | 0.9487 → 51% precision / 19% recall |
 | High-recall threshold | 0.2529 → 2.4% precision / 80% recall |
 | p50 latency (50 concurrent users) | 110 ms |
 | p95 latency (50 concurrent users) | 200 ms |
-| p99 latency (50 concurrent users) | 270 ms (single-replica Docker, local hardware) |
+| p99 latency (50 concurrent users) | 270 ms — model pre-loaded at startup; overhead is Locust + local Docker, not inference |
 | Throughput | 166 RPS, 0% errors |
 | PSI retrain threshold | > 0.2 per feature |
 | Cost-optimal threshold | 0.5813 → £91k saving vs no-model baseline |

@@ -20,6 +20,7 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from scipy.stats import ks_2samp
 from sklearn.metrics import (
     average_precision_score,
     confusion_matrix,
@@ -247,6 +248,11 @@ def evaluate(
 
     pr_auc  = float(average_precision_score(y_test, y_proba))
     roc_auc = float(roc_auc_score(y_test, y_proba))
+    gini    = float(2 * roc_auc - 1)
+
+    fraud_scores = y_proba[y_test == 1]
+    legit_scores = y_proba[y_test == 0]
+    ks_stat, _   = ks_2samp(fraud_scores, legit_scores)
 
     p_curve, r_curve, thresholds = precision_recall_curve(y_test, y_proba)
     # precision_recall_curve returns arrays of length n+1; thresholds has length n.
@@ -278,9 +284,11 @@ def evaluate(
         }
 
     return {
-        "pr_auc":   pr_auc,
-        "roc_auc":  roc_auc,
-        "pr_curve": (p_curve, r_curve, thresholds),
+        "pr_auc":     pr_auc,
+        "roc_auc":    roc_auc,
+        "gini":       gini,
+        "ks_stat":    float(ks_stat),
+        "pr_curve":   (p_curve, r_curve, thresholds),
         **_metrics_at(threshold_f1,  "f1_opt"),
         **_metrics_at(threshold_80r, "recall80"),
     }
@@ -377,6 +385,8 @@ def log_to_mlflow(
     mlflow.log_metrics({
         "pr_auc":             results["pr_auc"],
         "roc_auc":            results["roc_auc"],
+        "gini":               results["gini"],
+        "ks_stat":            results["ks_stat"],
         "f1_opt_precision":   results["f1_opt_precision"],
         "f1_opt_recall":      results["f1_opt_recall"],
         "f1_opt_f1":          results["f1_opt_f1"],
@@ -456,6 +466,8 @@ def _print_summary(
     print(div)
     print(f"  PR-AUC  (test)         : {results['pr_auc']:.4f}")
     print(f"  ROC-AUC (test)         : {results['roc_auc']:.4f}")
+    print(f"  Gini    (test)         : {results['gini']:.4f}  (target > 0.60)")
+    print(f"  KS stat (test)         : {results['ks_stat']:.4f}")
     print(div)
     for label, name in (("f1_opt", "F1-optimal"), ("recall80", "80%-recall")):
         print(f"  {name} threshold  : {results[f'{label}_threshold']:.4f}")
