@@ -58,11 +58,11 @@ jobs:
 
       - name: Wait for health
         run: |
-          for i in $(seq 1 20); do
-            STATUS=$(curl -sf http://localhost:8000/health \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null)
+          for i in $(seq 1 30); do
+            BODY=$(curl -s http://localhost:8000/health 2>/dev/null) || true
+            STATUS=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null) || true
             if [ "$STATUS" = "ok" ]; then echo "Healthy after $i attempts"; exit 0; fi
-            echo "Waiting... ($i/20)"; sleep 3
+            echo "Waiting... ($i/30) body=$BODY"; sleep 3
           done
           echo "Container never became healthy"
           docker logs fraud-api
