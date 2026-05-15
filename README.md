@@ -8,13 +8,20 @@
 
 | Metric | Value |
 |--------|-------|
-| Gini coefficient | _TBD — Phase 2_ |
-| KS statistic | _TBD — Phase 2_ |
-| PR-AUC | _TBD — Phase 2_ |
-| p99 latency (50 concurrent users) | _TBD — Phase 2_ |
+| ROC-AUC | 0.9476 |
+| PR-AUC | 0.2214 |
+| Gini coefficient | 0.895 |
+| F1-optimal threshold | 0.9487 → 51% precision / 19% recall |
+| High-recall threshold | 0.2529 → 2.4% precision / 80% recall |
+| p50 latency (50 concurrent users) | 110 ms |
+| p95 latency (50 concurrent users) | 200 ms |
+| p99 latency (50 concurrent users) | 270 ms (single-replica Docker, local hardware) |
+| Throughput | 166 RPS, 0% errors |
 | PSI retrain threshold | > 0.2 per feature |
+| Cost-optimal threshold | 0.5813 → £91k saving vs no-model baseline |
+| Expected £ saving vs F1-threshold | £38k per 120k transactions |
 
-Experiment tracking: _[DagsHub URL — configure in Phase 1]_
+Experiment tracking: [DagsHub — nufel.rokni.dev/fraud-detection-service](https://dagshub.com/nufel.rokni.dev/fraud-detection-service)
 
 ---
 
@@ -89,6 +96,6 @@ Rollback: single MLflow model alias change — no redeployment required.
 
 ## Project Status
 
-- [ ] Phase 1: Model trains, API serves, Docker runs
-- [ ] Phase 2: p99 published, SHAP notebook, Evidently PSI, business README complete
-- [ ] Phase 3: Cost matrix, model card, CI/CD
+- [x] Phase 1: Model trains, API serves, Docker runs
+- [x] Phase 2: p99 published, SHAP notebook, Evidently PSI, business README complete
+- [x] Phase 3: Cost matrix, model card, CI/CD
