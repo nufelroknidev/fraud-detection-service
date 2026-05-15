@@ -123,10 +123,6 @@ def generate_dataset(
     # --- Merchant IDs (realistic: many merchants per category) ---
     n_merchants = 2000
     merchant_ids = [f"merch_{i:05d}" for i in range(n_merchants)]
-    merchant_cat_map = {
-        m: categories[i % len(categories)]
-        for i, m in enumerate(merchant_ids)
-    }
     txn_merchants = rng.choice(n_merchants, size=n_transactions)
 
     # --- Build DataFrame ---
