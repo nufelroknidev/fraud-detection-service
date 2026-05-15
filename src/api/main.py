@@ -49,23 +49,39 @@ FEATURE_COLS = [
 _state: dict = {}
 
 
+# Thresholds from training run blushing-stag-185 — used as fallback when
+# MLflow tracking is unavailable (CI, offline development).
+_FALLBACK_THRESHOLD_F1_OPT   = 0.9487
+_FALLBACK_THRESHOLD_RECALL80 = 0.2529
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     run_id = os.environ.get("MLFLOW_RUN_ID")
-    if not run_id:
-        raise RuntimeError("MLFLOW_RUN_ID is not set in .env")
 
     init_mlflow("cnp-fraud-xgboost")
 
     if LOCAL_MODEL_PATH.exists():
         _state["pipeline"] = joblib.load(LOCAL_MODEL_PATH)
-    else:
+    elif run_id:
         _state["pipeline"] = mlflow.sklearn.load_model(f"runs:/{run_id}/pipeline")
+    else:
+        raise RuntimeError("No model found: set MLFLOW_RUN_ID or provide models/pipeline.pkl")
 
-    client = mlflow.tracking.MlflowClient()
-    params = client.get_run(run_id).data.params
-    _state["threshold_f1_opt"]   = float(params["threshold_f1_opt"])
-    _state["threshold_recall80"] = float(params["threshold_recall80"])
+    # Fetch thresholds from MLflow if a run ID is available; fall back to
+    # the committed values from the training run otherwise.
+    if run_id:
+        try:
+            client = mlflow.tracking.MlflowClient()
+            params = client.get_run(run_id).data.params
+            _state["threshold_f1_opt"]   = float(params["threshold_f1_opt"])
+            _state["threshold_recall80"] = float(params["threshold_recall80"])
+        except Exception:
+            _state["threshold_f1_opt"]   = _FALLBACK_THRESHOLD_F1_OPT
+            _state["threshold_recall80"] = _FALLBACK_THRESHOLD_RECALL80
+    else:
+        _state["threshold_f1_opt"]   = _FALLBACK_THRESHOLD_F1_OPT
+        _state["threshold_recall80"] = _FALLBACK_THRESHOLD_RECALL80
 
     yield
     _state.clear()
