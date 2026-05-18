@@ -20,16 +20,18 @@ import random
 from locust import HttpUser, between, task
 
 
-# Representative merchant categories from the training data
+# Merchant categories that appear in the training data (src/data/generate.py).
+# Do NOT add categories not in this list — unknown categories are OOD and
+# will trigger the oot_features flag on every request, polluting load test metrics.
 _MERCHANT_CATEGORIES = [
     "electronics",
-    "clothing",
-    "food_delivery",
     "travel",
-    "gaming",
+    "fashion",
     "grocery",
-    "fuel",
-    "subscription",
+    "gaming",
+    "jewellery",
+    "food_delivery",
+    "subscriptions",
 ]
 
 
@@ -46,12 +48,16 @@ def _normal_txn() -> dict:
         "card_avg_amount_30d": avg_30d,
         "card_txn_count_1h": random.randint(0, 2),
         "card_amount_sum_1h": round(random.uniform(0.0, 60.0), 2),
+        "card_txn_count_6h": random.randint(0, 5),
+        "card_amount_sum_6h": round(random.uniform(0.0, 150.0), 2),
         "card_txn_count_24h": random.randint(1, 8),
         "card_amount_sum_24h": round(random.uniform(20.0, 300.0), 2),
-        "merch_txn_count_1h": random.randint(10, 200),
+        "card_txn_count_7d": random.randint(5, 25),
+        "card_amount_sum_7d": round(random.uniform(100.0, 800.0), 2),
+        "card_merch_txn_count_1h": random.randint(0, 2),
         "time_since_last_card_txn_sec": round(random.uniform(3600.0, 86400.0), 1),
-        "amount_to_card_avg_ratio": round(amount / max(avg_30d, 1.0), 4),
-        "log_amount": round(math.log(amount), 6),
+        "amount_to_card_avg_ratio": round(amount / max(avg_30d, 0.01), 4),
+        "log_amount": round(math.log1p(amount), 6),
         "hour_sin": round(math.sin(2 * math.pi * hour / 24), 6),
         "hour_cos": round(math.cos(2 * math.pi * hour / 24), 6),
         "dow_sin": round(math.sin(2 * math.pi * dow / 7), 6),
@@ -73,12 +79,16 @@ def _suspicious_txn() -> dict:
         "card_avg_amount_30d": avg_30d,
         "card_txn_count_1h": random.randint(3, 8),   # velocity burst
         "card_amount_sum_1h": round(random.uniform(500.0, 2000.0), 2),
+        "card_txn_count_6h": random.randint(5, 15),
+        "card_amount_sum_6h": round(random.uniform(800.0, 3000.0), 2),
         "card_txn_count_24h": random.randint(8, 20),
         "card_amount_sum_24h": round(random.uniform(1000.0, 5000.0), 2),
-        "merch_txn_count_1h": random.randint(1, 15),
+        "card_txn_count_7d": random.randint(15, 40),
+        "card_amount_sum_7d": round(random.uniform(3000.0, 12000.0), 2),
+        "card_merch_txn_count_1h": random.randint(1, 5),
         "time_since_last_card_txn_sec": round(random.uniform(30.0, 300.0), 1),
-        "amount_to_card_avg_ratio": round(amount / max(avg_30d, 1.0), 4),
-        "log_amount": round(math.log(amount), 6),
+        "amount_to_card_avg_ratio": round(amount / max(avg_30d, 0.01), 4),
+        "log_amount": round(math.log1p(amount), 6),
         "hour_sin": round(math.sin(2 * math.pi * hour / 24), 6),
         "hour_cos": round(math.cos(2 * math.pi * hour / 24), 6),
         "dow_sin": round(math.sin(2 * math.pi * dow / 7), 6),

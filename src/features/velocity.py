@@ -13,10 +13,16 @@ All rolling features use closed='left' so each row only sees transactions
 that occurred strictly before it — zero future leakage.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 _BASE_TS = pd.Timestamp("2020-01-01")
+
+_PROJECT_ROOT = Path(__file__).parents[2]
+_RAW_PATH  = _PROJECT_ROOT / "data" / "raw"  / "transactions.csv"
+_OUT_PATH  = _PROJECT_ROOT / "data" / "processed" / "transactions_featured.csv"
 
 
 def _to_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
@@ -41,13 +47,24 @@ def _card_velocity(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _merchant_velocity(df: pd.DataFrame) -> pd.DataFrame:
-    """Per-merchant transaction count in the preceding 1 h."""
-    rolled = df.groupby("merchant_id", sort=False)["amount_gbp"].rolling(
+def _card_merchant_velocity(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-card-per-merchant transaction count in the preceding 1 h.
+
+    Groups by (card_id, merchant_id) so the count reflects how many times
+    this specific card has hit this specific merchant recently. A legitimate
+    one-off purchase has count=0; a card-testing ring probing the same merchant
+    or a repeat fraudster returns to the same shop both produce elevated counts.
+
+    This replaced the earlier merch_txn_count_1h (merchant-level total), which
+    was semantically backwards: high-volume merchants were always elevated,
+    while novel compromised merchants had low counts — exactly when fraud is
+    highest. See todolist.md R4-R1.
+    """
+    rolled = df.groupby(["card_id", "merchant_id"], sort=False)["amount_gbp"].rolling(
         "1h", closed="left", min_periods=0
     )
-    df["merch_txn_count_1h"] = (
-        rolled.count().reset_index(level=0, drop=True).astype(int)
+    df["card_merch_txn_count_1h"] = (
+        rolled.count().reset_index(level=[0, 1], drop=True).astype(int)
     )
     return df
 
@@ -61,8 +78,12 @@ def _time_since_last(df: pd.DataFrame) -> pd.DataFrame:
 
 def _amount_features(df: pd.DataFrame) -> pd.DataFrame:
     """Amount relative to the card's 30-day baseline and log-scaled amount."""
+    # clip at 0.01 (not 1.0) — preserves signal for low-spending cards (gift cards,
+    # newly-issued cards) which are high-risk segments in CNP fraud.
+    # NOTE: the deployed model was trained with clip=1.0. Retrain required before
+    # deploying callers that use this updated clip value (see todolist.md).
     df["amount_to_card_avg_ratio"] = (
-        df["amount_gbp"] / df["card_avg_amount_30d"].clip(lower=1.0)
+        df["amount_gbp"] / df["card_avg_amount_30d"].clip(lower=0.01)
     )
     df["log_amount"] = np.log1p(df["amount_gbp"])
     return df
@@ -93,8 +114,19 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = _to_datetime_index(df)
     df = _card_velocity(df)
-    df = _merchant_velocity(df)
+    df = _card_merchant_velocity(df)
     df = _time_since_last(df)
     df = _amount_features(df)
     df = _cyclic_features(df)
     return df.reset_index(drop=True)
+
+
+if __name__ == "__main__":
+    print(f"[velocity] Loading raw data from {_RAW_PATH} ...")
+    raw = pd.read_csv(_RAW_PATH)
+    print(f"[velocity] {len(raw):,} rows loaded. Running feature engineering ...")
+    featured = add_features(raw)
+    _OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    featured.to_csv(_OUT_PATH, index=False)
+    print(f"[velocity] Saved {len(featured):,} rows to {_OUT_PATH}")
+    print(f"[velocity] Columns: {list(featured.columns)}")

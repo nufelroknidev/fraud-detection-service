@@ -26,45 +26,23 @@ import pandas as pd
 from evidently import Dataset, Report
 from evidently.metrics import DriftedColumnsCount, ValueDrift
 
+from src.model.train import FEATURE_COLS
+
 PROJECT_ROOT = Path(__file__).parents[2]
 DATA_PATH    = PROJECT_ROOT / "data" / "processed" / "transactions_featured.csv"
 REPORT_DIR   = PROJECT_ROOT / "results" / "drift"
 MODEL_PATH   = PROJECT_ROOT / "models" / "pipeline.pkl"
 
-# All model input features — used to compute prediction scores for output drift monitoring
-_SCORE_FEATURE_COLS = [
-    "amount_gbp", "hour_of_day", "day_of_week", "card_avg_amount_30d",
-    "card_txn_count_1h", "card_amount_sum_1h",
-    "card_txn_count_6h", "card_amount_sum_6h",
-    "card_txn_count_24h", "card_amount_sum_24h",
-    "card_txn_count_7d", "card_amount_sum_7d",
-    "merch_txn_count_1h", "time_since_last_card_txn_sec",
-    "amount_to_card_avg_ratio", "log_amount",
-    "hour_sin", "hour_cos", "dow_sin", "dow_cos",
-    "merchant_category",
-]
+# FEATURE_COLS (from train.py) used for prediction score computation.
+_SCORE_FEATURE_COLS = FEATURE_COLS
 
 PSI_INVESTIGATE = 0.10
 PSI_RETRAIN     = 0.20
 
-# Features monitored — matches FEATURE_COLS in train.py / main.py
-MONITORED_FEATURES = [
-    "amount_gbp",
-    "card_avg_amount_30d",
-    "card_txn_count_1h",
-    "card_amount_sum_1h",
-    "card_txn_count_6h",
-    "card_amount_sum_6h",
-    "card_txn_count_24h",
-    "card_amount_sum_24h",
-    "card_txn_count_7d",
-    "card_amount_sum_7d",
-    "merch_txn_count_1h",
-    "time_since_last_card_txn_sec",
-    "amount_to_card_avg_ratio",
-    "log_amount",
-    "merchant_category",
-]
+# PSI is a weak signal for bounded periodic features — their distributions always
+# span [-1, 1] regardless of fraud pattern shift. Monitor raw time fields instead.
+_SKIP_PSI = {"hour_sin", "hour_cos", "dow_sin", "dow_cos"}
+MONITORED_FEATURES = [c for c in FEATURE_COLS if c not in _SKIP_PSI]
 
 
 def _load_windows(

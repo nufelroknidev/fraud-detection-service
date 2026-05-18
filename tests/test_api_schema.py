@@ -14,17 +14,21 @@ def _valid_payload(**overrides) -> dict:
         "card_avg_amount_30d": 60.0,
         "card_txn_count_1h": 1,
         "card_amount_sum_1h": 45.50,
+        "card_txn_count_6h": 2,
+        "card_amount_sum_6h": 90.0,
         "card_txn_count_24h": 3,
         "card_amount_sum_24h": 120.0,
-        "merch_txn_count_1h": 50,
+        "card_txn_count_7d": 15,
+        "card_amount_sum_7d": 500.0,
+        "card_merch_txn_count_1h": 0,
         "time_since_last_card_txn_sec": 14400.0,
         "amount_to_card_avg_ratio": 0.758,
-        "log_amount": math.log(45.50),
+        "log_amount": math.log1p(45.50),
         "hour_sin": math.sin(2 * math.pi * 14 / 24),
         "hour_cos": math.cos(2 * math.pi * 14 / 24),
         "dow_sin": math.sin(2 * math.pi * 2 / 7),
         "dow_cos": math.cos(2 * math.pi * 2 / 7),
-        "merchant_category": "clothing",
+        "merchant_category": "electronics",
     }
     base.update(overrides)
     return base
@@ -33,7 +37,7 @@ def _valid_payload(**overrides) -> dict:
 def test_valid_request_parses():
     req = PredictRequest(**_valid_payload())
     assert req.amount_gbp == 45.50
-    assert req.merchant_category == "clothing"
+    assert req.merchant_category == "electronics"
 
 
 def test_first_transaction_sentinel():
@@ -61,8 +65,9 @@ def test_response_model_block():
         fraud_probability=0.97,
         f1_opt_decision="BLOCK",
         recall80_decision="REVIEW",
-        f1_opt_threshold=0.9487,
-        recall80_threshold=0.2529,
+        f1_opt_threshold=0.8820,
+        recall80_threshold=0.1013,
+        top_features=[],
     )
     assert resp.f1_opt_decision == "BLOCK"
     assert resp.recall80_decision == "REVIEW"
@@ -73,7 +78,8 @@ def test_response_model_pass():
         fraud_probability=0.01,
         f1_opt_decision="PASS",
         recall80_decision="PASS",
-        f1_opt_threshold=0.9487,
-        recall80_threshold=0.2529,
+        f1_opt_threshold=0.8820,
+        recall80_threshold=0.1013,
+        top_features=[],
     )
     assert resp.f1_opt_decision == "PASS"

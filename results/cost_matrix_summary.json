@@ -1,0 +1,11 @@
+{
+  "fp_cost_gbp": 5.0,
+  "tp_cost_gbp": 2.0,
+  "baseline_cost_gbp": 141654.7,
+  "f1_threshold": 0.882,
+  "f1_cost_gbp": 89698.87,
+  "cost_optimal_threshold": 0.3153,
+  "cost_optimal_total_gbp": 61467.1,
+  "saving_vs_baseline_gbp": 80187.6,
+  "saving_vs_f1_gbp": 28231.77
+}

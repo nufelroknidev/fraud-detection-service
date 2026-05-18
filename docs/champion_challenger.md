@@ -78,7 +78,24 @@ Before entering live A/B traffic, a new model runs in **shadow mode**:
 - Makes predictions but **does not serve them** to callers
 - Logs predictions alongside champion decisions for offline comparison
 
-Shadow mode runs for 24 hours minimum before challenger promotion.
+Shadow mode runs for a minimum of **24 hours and ≥ 10,000 scored transactions**
+before challenger promotion is considered.
+
+### Shadow Promotion Gates
+
+All four gates must pass before a shadow model advances to live challenger traffic.
+A single gate failure aborts promotion and returns the model to shadow mode.
+
+| Gate | Threshold | Rationale |
+|------|-----------|-----------|
+| Minimum observations | ≥ 10,000 transactions | Statistical power for distribution comparison |
+| PR-AUC vs champion holdout | ≥ 0.85 of champion PR-AUC | Ensures model quality floor before live exposure |
+| Score distribution divergence | KL-divergence from champion < 0.10 | Detects systematic score shift that would alter decision distribution |
+| p99 latency | Within 20% of champion p99 | Prevents SLA regression from a slower model architecture |
+
+If any gate fails, the shadow run is extended by 24 hours and re-evaluated.
+A model that fails two consecutive gate evaluations is retired from shadow and
+requires a new training run before re-entry.
 
 ---
 
@@ -103,5 +120,7 @@ challenger evaluation window — this triggers automatic traffic reversion to
 - Model aliases are managed in DagsHub MLflow (`nufel.rokni.dev/fraud-detection-service`)
 - The FastAPI `lifespan` loader reads `MLFLOW_RUN_ID` from `.env` — in production
   this is replaced by an alias lookup: `models:/cnp-fraud-xgboost@champion`
-- Traffic routing is implemented as a thin middleware layer in `src/api/main.py`
-  (Phase 3 implementation task)
+- Each container reads `MODEL_ROLE` from its environment (default: `champion`).
+  The role is returned in every `/predict` response as `x-model-role` header and
+  exposed in `/health` as `model_role`. A load balancer or API gateway routes
+  5% of traffic to the challenger container using this header for observability.

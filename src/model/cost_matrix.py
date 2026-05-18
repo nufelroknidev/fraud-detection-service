@@ -29,26 +29,18 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 
+from src.model.train import FEATURE_COLS, TARGET_COL, temporal_split
+
 PROJECT_ROOT = Path(__file__).parents[2]
 DATA_PATH    = PROJECT_ROOT / "data" / "processed" / "transactions_featured.csv"
 MODEL_PATH   = PROJECT_ROOT / "models" / "pipeline.pkl"
 RESULTS_DIR  = PROJECT_ROOT / "results"
 
-FEATURE_COLS = [
-    "amount_gbp", "hour_of_day", "day_of_week", "card_avg_amount_30d",
-    "card_txn_count_1h", "card_amount_sum_1h", "card_txn_count_24h",
-    "card_amount_sum_24h", "merch_txn_count_1h", "time_since_last_card_txn_sec",
-    "amount_to_card_avg_ratio", "log_amount",
-    "hour_sin", "hour_cos", "dow_sin", "dow_cos",
-    "merchant_category",
-]
-TARGET_COL = "is_fraud"
-
 
 def load_test_set() -> tuple[pd.DataFrame, pd.Series]:
+    """Load the identical test split used during training (temporal, not row-count)."""
     df = pd.read_csv(DATA_PATH).sort_values("timestamp_sec").reset_index(drop=True)
-    split = int(len(df) * 0.8)
-    test = df.iloc[split:]
+    _, _, test = temporal_split(df)
     return test[FEATURE_COLS], test[TARGET_COL]
 
 
@@ -89,6 +81,7 @@ def compute_cost_curve(
 def run_cost_analysis(
     fp_cost: float = 5.0,
     tp_cost: float = 2.0,
+    f1_thr: float = 0.8820,
 ) -> dict:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -108,8 +101,7 @@ def run_cost_analysis(
     # Baseline cost: block nothing (all FNs)
     baseline_cost = float(amounts[y_true == 1].sum())
 
-    # Cost at F1-optimal threshold (loaded from model params via simple heuristic)
-    f1_thr_approx = 0.9487  # from training run blushing-stag-185
+    f1_thr_approx = f1_thr
     f1_cost = float(costs[np.argmin(np.abs(thresholds - f1_thr_approx))])
 
     saving_vs_baseline = baseline_cost - opt_cost
@@ -168,5 +160,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cost-matrix threshold analysis")
     parser.add_argument("--fp-cost", type=float, default=5.0, help="£ cost per false positive")
     parser.add_argument("--tp-cost", type=float, default=2.0, help="£ cost per true positive (review overhead)")
+    parser.add_argument("--f1-thr", type=float, default=0.8820,
+                        help="F1-optimal threshold from the training run (logged as threshold_f1_opt in MLflow)")
     args = parser.parse_args()
-    run_cost_analysis(fp_cost=args.fp_cost, tp_cost=args.tp_cost)
+    run_cost_analysis(fp_cost=args.fp_cost, tp_cost=args.tp_cost, f1_thr=args.f1_thr)

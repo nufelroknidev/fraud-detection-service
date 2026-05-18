@@ -32,15 +32,15 @@ def _valid_payload(**overrides) -> dict:
         "card_amount_sum_24h": 120.0,
         "card_txn_count_7d": 15,
         "card_amount_sum_7d": 500.0,
-        "merch_txn_count_1h": 50,
+        "card_merch_txn_count_1h": 0,
         "time_since_last_card_txn_sec": 14400.0,
         "amount_to_card_avg_ratio": 0.758,
-        "log_amount": math.log(45.50),
+        "log_amount": math.log1p(45.50),
         "hour_sin": math.sin(2 * math.pi * 14 / 24),
         "hour_cos": math.cos(2 * math.pi * 14 / 24),
         "dow_sin": math.sin(2 * math.pi * 2 / 7),
         "dow_cos": math.cos(2 * math.pi * 2 / 7),
-        "merchant_category": "clothing",
+        "merchant_category": "electronics",
     }
     base.update(overrides)
     return base
@@ -111,7 +111,7 @@ def test_predict_high_risk_transaction(client):
         amount_gbp=5000.0,
         card_avg_amount_30d=50.0,
         amount_to_card_avg_ratio=100.0,
-        log_amount=math.log(5000.0),
+        log_amount=math.log1p(5000.0),
         card_txn_count_1h=5,
         card_amount_sum_1h=5000.0,
         hour_of_day=2,   # night
@@ -120,3 +120,29 @@ def test_predict_high_risk_transaction(client):
     ))
     assert r.status_code == 200
     assert r.json()["fraud_probability"] > 0.0
+
+
+def test_shap_direction_matches_sign(client):
+    """direction field must be consistent with the sign of shap_value."""
+    r = client.post("/predict", json=_valid_payload())
+    assert r.status_code == 200
+    for feat in r.json()["top_features"]:
+        sv = feat["shap_value"]
+        expected = "increases_risk" if sv > 0 else "decreases_risk"
+        assert feat["direction"] == expected, (
+            f"Feature '{feat['feature']}': shap_value={sv} but direction='{feat['direction']}'"
+        )
+
+
+def test_unknown_merchant_category_flagged(client):
+    """An unrecognised merchant_category must appear in oot_features."""
+    r = client.post("/predict", json=_valid_payload(merchant_category="CRYPTO_EXCHANGE"))
+    assert r.status_code == 200
+    assert "merchant_category" in r.json()["oot_features"]
+
+
+def test_known_merchant_category_not_flagged(client):
+    """A category seen during training must not appear in oot_features."""
+    r = client.post("/predict", json=_valid_payload(merchant_category="electronics"))
+    assert r.status_code == 200
+    assert "merchant_category" not in r.json()["oot_features"]

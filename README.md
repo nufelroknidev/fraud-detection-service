@@ -8,19 +8,19 @@
 
 | Metric | Value |
 |--------|-------|
-| ROC-AUC | 0.9497 |
-| PR-AUC | 0.2358 |
-| Gini coefficient | 0.8995 (target > 0.60) |
-| KS statistic | 0.7711 |
-| F1-optimal threshold | 0.9298 → 43% precision / 22% recall |
-| High-recall threshold | 0.2496 → 2.5% precision / 80% recall |
+| ROC-AUC | 0.9483 |
+| PR-AUC | 0.2291 |
+| Gini coefficient | 0.8966 (target > 0.60) |
+| KS statistic | 0.7668 |
+| F1-optimal threshold | 0.8820 → 36% precision / 24% recall |
+| High-recall threshold | 0.1013 → 2.4% precision / 80% recall |
 | p50 latency (50 concurrent users) | 110 ms |
 | p95 latency (50 concurrent users) | 200 ms |
 | p99 latency (50 concurrent users) | 270 ms — model pre-loaded at startup; overhead is Locust + local Docker, not inference |
 | Throughput | 166 RPS, 0% errors |
 | PSI retrain threshold | > 0.2 per feature |
-| Cost-optimal threshold | 0.5813 → £91k saving vs no-model baseline |
-| Expected £ saving vs F1-threshold | £38k per 120k transactions |
+| Cost-optimal threshold | 0.3153 → £80k saving vs no-model baseline |
+| Expected £ saving vs F1-threshold | £28k per 100k transactions |
 
 Experiment tracking: [DagsHub — nufel.rokni.dev/fraud-detection-service](https://dagshub.com/nufel.rokni.dev/fraud-detection-service)
 
@@ -93,7 +93,9 @@ PSI (Population Stability Index) is tracked per feature using Evidently. Run wit
 
 ![Evidently PSI Drift Report](docs/images/evidently_drift.png)
 
-All 11 features are **stable** on synthetic data (PSI < 0.10). `time_since_last_card_txn_sec` is the highest at 0.0925 — a natural consequence of temporal drift in inter-transaction gaps as the simulated dataset progresses.
+All 18 features are **stable** on synthetic data (PSI < 0.10). `time_since_last_card_txn_sec` is the highest at 0.0925 — a natural consequence of temporal drift in inter-transaction gaps as the simulated dataset progresses. `prediction_score` PSI is 0.0023, confirming the model's output distribution is stable across the two windows.
+
+> **Scope note:** These PSI values are computed between two windows of the same synthetic dataset (reference = first 60%, current = last 20%). Both windows share the same generative process, so near-zero results are expected — this validates the monitoring pipeline, not production stability. In a live deployment the reference window would be the training distribution and the current window a rolling 7-day buffer of scored transactions.
 
 | PSI Range | Status | Action |
 |-----------|--------|--------|

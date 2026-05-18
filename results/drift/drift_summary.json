@@ -1,0 +1,80 @@
+{
+  "per_feature": {
+    "amount_gbp": {
+      "psi": 0.0004,
+      "status": "STABLE"
+    },
+    "hour_of_day": {
+      "psi": 0.0002,
+      "status": "STABLE"
+    },
+    "day_of_week": {
+      "psi": 0.043,
+      "status": "STABLE"
+    },
+    "card_avg_amount_30d": {
+      "psi": 0.0002,
+      "status": "STABLE"
+    },
+    "card_txn_count_1h": {
+      "psi": 0.0002,
+      "status": "STABLE"
+    },
+    "card_amount_sum_1h": {
+      "psi": 0.0003,
+      "status": "STABLE"
+    },
+    "card_txn_count_6h": {
+      "psi": 0.0004,
+      "status": "STABLE"
+    },
+    "card_amount_sum_6h": {
+      "psi": 0.0008,
+      "status": "STABLE"
+    },
+    "card_txn_count_24h": {
+      "psi": 0.0002,
+      "status": "STABLE"
+    },
+    "card_amount_sum_24h": {
+      "psi": 0.0005,
+      "status": "STABLE"
+    },
+    "card_txn_count_7d": {
+      "psi": 0.0041,
+      "status": "STABLE"
+    },
+    "card_amount_sum_7d": {
+      "psi": 0.0017,
+      "status": "STABLE"
+    },
+    "card_merch_txn_count_1h": {
+      "psi": 0.0,
+      "status": "STABLE"
+    },
+    "time_since_last_card_txn_sec": {
+      "psi": 0.0925,
+      "status": "STABLE"
+    },
+    "amount_to_card_avg_ratio": {
+      "psi": 0.0004,
+      "status": "STABLE"
+    },
+    "log_amount": {
+      "psi": 0.0003,
+      "status": "STABLE"
+    },
+    "merchant_category": {
+      "psi": 0.0001,
+      "status": "STABLE"
+    },
+    "prediction_score": {
+      "psi": 0.0023,
+      "status": "STABLE"
+    }
+  },
+  "drifted_count": 0,
+  "retrain_triggered": false,
+  "worst_feature": "time_since_last_card_txn_sec",
+  "worst_psi": 0.0925
+}

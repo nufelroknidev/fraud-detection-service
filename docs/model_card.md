@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Model type | XGBoost binary classifier (sklearn Pipeline with OrdinalEncoder) |
-| Version | blushing-stag-185 |
-| Training date | 2026-05-14 |
+| Version | post-retrain-2026-05-18 (clip=0.01, card_merch_txn_count_1h) |
+| Training date | 2026-05-18 |
 | Framework | XGBoost 2.x, scikit-learn 1.4+ |
 | Tracking | DagsHub MLflow — nufel.rokni.dev/fraud-detection-service |
 | Owner | Nawfal Rokni |
@@ -55,7 +55,11 @@ but underweight compared to live data.
 | `card_amount_sum_1h` | Numeric | Spend on card in last 1 hour |
 | `card_txn_count_24h` | Numeric | Transactions on card in last 24 hours |
 | `card_amount_sum_24h` | Numeric | Spend on card in last 24 hours |
-| `merch_txn_count_1h` | Numeric | Transactions at merchant in last 1 hour |
+| `card_txn_count_6h` | Numeric | Transactions on card in last 6 hours |
+| `card_amount_sum_6h` | Numeric | Spend on card in last 6 hours |
+| `card_txn_count_7d` | Numeric | Transactions on card in last 7 days |
+| `card_amount_sum_7d` | Numeric | Spend on card in last 7 days |
+| `card_merch_txn_count_1h` | Numeric | Times this card hit this merchant in the last 1 hour |
 | `time_since_last_card_txn_sec` | Numeric | Seconds since card's last transaction (-1 = first ever) |
 | `hour_sin`, `hour_cos` | Numeric | Cyclic encoding of hour of day |
 | `dow_sin`, `dow_cos` | Numeric | Cyclic encoding of day of week |
@@ -71,18 +75,19 @@ Evaluated on temporal holdout (last 20% of data by timestamp).
 
 | Metric | Value |
 |--------|-------|
-| ROC-AUC | 0.9476 |
-| PR-AUC | 0.2214 |
-| Gini coefficient | 0.895 |
-| Best XGBoost round | 480 / 1000 |
+| ROC-AUC | 0.9483 |
+| PR-AUC | 0.2291 |
+| Gini coefficient | 0.8966 |
+| KS statistic | 0.7668 |
+| Best XGBoost round | 774 / 1000 |
 | `scale_pos_weight` | 334.8 (class imbalance correction) |
 
 ### Operating Points
 
 | Threshold | Purpose | Precision | Recall | Use case |
 |-----------|---------|-----------|--------|----------|
-| 0.9487 | F1-optimal (BLOCK) | 51% | 19% | High-confidence auto-block |
-| 0.2529 | 80%-recall (REVIEW) | 2.4% | 80% | Human review queue |
+| 0.8820 | F1-optimal (BLOCK) | 36.4% | 23.5% | High-confidence auto-block |
+| 0.1013 | 80%-recall (REVIEW) | 2.4% | 80% | Human review queue |
 
 ---
 
@@ -91,6 +96,14 @@ Evaluated on temporal holdout (last 20% of data by timestamp).
 1. **Synthetic data bias:** Precision at high recall is low (2.4%) because the
    synthetic generator does not produce velocity bursts. Live data would improve
    this significantly.
+
+2. **`card_merch_txn_count_1h` has zero feature importance in this model.** With
+   50k cards and 2000 merchants distributed uniformly, the same card almost never
+   hits the same merchant twice within an hour by chance — the feature is always 0
+   in training. The 3.5% PR-AUC gain vs. the previous model came entirely from the
+   `clip=0.01` fix on `amount_to_card_avg_ratio`, not from the new feature. On live
+   payments data this feature would activate immediately for card-testing attacks
+   (same card probing the same merchant repeatedly in seconds).
 
 2. **Static merchant categories:** The OrdinalEncoder assigns arbitrary ordinal
    values to categories. A learned embedding would better capture category risk.
@@ -115,14 +128,22 @@ conducted before production deployment using real customer data.
 
 ## Monitoring & Retraining
 
-| Trigger | Action |
-|---------|--------|
-| PSI > 0.20 on any feature | Initiate retraining pipeline |
-| PR-AUC drops > 5% on rolling 7-day eval | Alert + review |
-| False positive rate > 2x baseline | Threshold recalibration |
+| Trigger | Implemented | Action |
+|---------|-------------|--------|
+| PSI > 0.20 on any feature | Yes — `src/monitoring/drift.py` | Initiate retraining pipeline |
+| Score distribution PSI > 0.10 | Yes — `src/monitoring/drift.py` | Alert + review |
+| PR-AUC drops > 5% on rolling 7-day eval | **No** — requires chargeback label pipeline | Alert + review |
+| False positive rate > 2x baseline | **No** — requires ground truth labels | Threshold recalibration |
 
-Monitoring is implemented in `src/monitoring/drift.py`. Reports are written
-to `results/drift/` on each run.
+**Monitoring gap:** Feature PSI and score distribution are monitored in
+`src/monitoring/drift.py`. Model performance metrics (PR-AUC, recall, false
+positive rate) require ground truth labels which arrive 30–90 days after
+transaction via chargeback / dispute data. In production, a label ingestion
+pipeline would join chargeback events to scored transactions and compute
+rolling PR-AUC on confirmed-labelled windows. This is not implemented in
+the synthetic data environment.
+
+Reports are written to `results/drift/` on each run.
 
 ---
 

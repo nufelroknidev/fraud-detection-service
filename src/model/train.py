@@ -59,7 +59,7 @@ FEATURE_COLS = [
     "card_amount_sum_24h",
     "card_txn_count_7d",
     "card_amount_sum_7d",
-    "merch_txn_count_1h",
+    "card_merch_txn_count_1h",
     "time_since_last_card_txn_sec",
     "amount_to_card_avg_ratio",
     "log_amount",
