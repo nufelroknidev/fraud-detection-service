@@ -190,6 +190,24 @@ curl -X POST http://localhost:8000/predict \
   }'
 ```
 
+Example response for a high-risk transaction (£450 on a £60-average card, 3 transactions in the last hour):
+
+```json
+{
+  "fraud_probability": 0.873,
+  "f1_opt_decision": "BLOCK",
+  "recall80_decision": "REVIEW",
+  "f1_opt_threshold": 0.882,
+  "recall80_threshold": 0.101,
+  "top_features": [
+    {"feature": "amount_to_card_avg_ratio", "shap_value": 1.842, "direction": "increases_risk"},
+    {"feature": "card_txn_count_1h",        "shap_value": 0.631, "direction": "increases_risk"},
+    {"feature": "card_avg_amount_30d",      "shap_value": -0.294, "direction": "decreases_risk"}
+  ],
+  "oot_features": []
+}
+```
+
 ---
 
 ## Docs
