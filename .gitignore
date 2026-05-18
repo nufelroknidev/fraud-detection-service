@@ -14,5 +14,7 @@ env/
 data/raw/
 data/processed/
 reports/*.html
+results/*.html
 *.csv
 *.parquet
+todolist.md
