@@ -53,8 +53,12 @@ FEATURE_COLS = [
     "card_avg_amount_30d",
     "card_txn_count_1h",
     "card_amount_sum_1h",
+    "card_txn_count_6h",
+    "card_amount_sum_6h",
     "card_txn_count_24h",
     "card_amount_sum_24h",
+    "card_txn_count_7d",
+    "card_amount_sum_7d",
     "merch_txn_count_1h",
     "time_since_last_card_txn_sec",
     "amount_to_card_avg_ratio",
@@ -356,90 +360,97 @@ def log_to_mlflow(
 ) -> None:
     import sklearn
 
+    # Save locally first — resilient to DagsHub network failures
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    joblib.dump(pipeline, MODEL_PATH)
+    print(f"  Local model saved to {MODEL_PATH}")
+
     classifier = pipeline.named_steps["classifier"]
     xgb_params = classifier.get_params()
 
-    mlflow.log_params({
-        "n_estimators_ceiling":  1000,
-        "best_iteration":        classifier.best_iteration,
-        "learning_rate":         xgb_params["learning_rate"],
-        "max_depth":             xgb_params["max_depth"],
-        "min_child_weight":      xgb_params["min_child_weight"],
-        "subsample":             xgb_params["subsample"],
-        "colsample_bytree":      xgb_params["colsample_bytree"],
-        "gamma":                 xgb_params["gamma"],
-        "scale_pos_weight":      round(xgb_params["scale_pos_weight"], 2),
-        "early_stopping_rounds": xgb_params["early_stopping_rounds"],
-        "n_features":            len(FEATURE_COLS),
-        "n_train":               split_counts["train"],
-        "n_val":                 split_counts["val"],
-        "n_test":                split_counts["test"],
-        "n_fraud_train":         fraud_counts["train"],
-        "n_fraud_val":           fraud_counts["val"],
-        "n_fraud_test":          fraud_counts["test"],
-        "threshold_f1_opt":      round(results["f1_opt_threshold"], 6),
-        "threshold_recall80":    round(results["recall80_threshold"], 6),
-        "sklearn_version":       sklearn.__version__,
-    })
+    try:
+        mlflow.log_params({
+            "n_estimators_ceiling":  1000,
+            "best_iteration":        classifier.best_iteration,
+            "learning_rate":         xgb_params["learning_rate"],
+            "max_depth":             xgb_params["max_depth"],
+            "min_child_weight":      xgb_params["min_child_weight"],
+            "subsample":             xgb_params["subsample"],
+            "colsample_bytree":      xgb_params["colsample_bytree"],
+            "gamma":                 xgb_params["gamma"],
+            "scale_pos_weight":      round(xgb_params["scale_pos_weight"], 2),
+            "early_stopping_rounds": xgb_params["early_stopping_rounds"],
+            "n_features":            len(FEATURE_COLS),
+            "n_train":               split_counts["train"],
+            "n_val":                 split_counts["val"],
+            "n_test":                split_counts["test"],
+            "n_fraud_train":         fraud_counts["train"],
+            "n_fraud_val":           fraud_counts["val"],
+            "n_fraud_test":          fraud_counts["test"],
+            "threshold_f1_opt":      round(results["f1_opt_threshold"], 6),
+            "threshold_recall80":    round(results["recall80_threshold"], 6),
+            "sklearn_version":       sklearn.__version__,
+        })
 
-    mlflow.log_metrics({
-        "pr_auc":             results["pr_auc"],
-        "roc_auc":            results["roc_auc"],
-        "gini":               results["gini"],
-        "ks_stat":            results["ks_stat"],
-        "f1_opt_precision":   results["f1_opt_precision"],
-        "f1_opt_recall":      results["f1_opt_recall"],
-        "f1_opt_f1":          results["f1_opt_f1"],
-        "recall80_precision": results["recall80_precision"],
-        "recall80_recall":    results["recall80_recall"],
-        "recall80_f1":        results["recall80_f1"],
-    })
+        mlflow.log_metrics({
+            "pr_auc":             results["pr_auc"],
+            "roc_auc":            results["roc_auc"],
+            "gini":               results["gini"],
+            "ks_stat":            results["ks_stat"],
+            "f1_opt_precision":   results["f1_opt_precision"],
+            "f1_opt_recall":      results["f1_opt_recall"],
+            "f1_opt_f1":          results["f1_opt_f1"],
+            "recall80_precision": results["recall80_precision"],
+            "recall80_recall":    results["recall80_recall"],
+            "recall80_f1":        results["recall80_f1"],
+        })
 
-    # Artifact: feature column list (schema contract for the inference API)
-    mlflow.log_text(json.dumps(FEATURE_COLS, indent=2), "feature_cols.json")
+        # Artifact: feature column list (schema contract for the inference API)
+        mlflow.log_text(json.dumps(FEATURE_COLS, indent=2), "feature_cols.json")
 
-    # Artifact: PR curve with both threshold markers
-    p_curve, r_curve, _ = results["pr_curve"]
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(r_curve, p_curve, lw=2, label=f"PR-AUC = {results['pr_auc']:.4f}")
-    ax.axvline(
-        results["f1_opt_recall"], color="steelblue", linestyle="--",
-        label=f"F1-opt  (recall={results['f1_opt_recall']:.2f}, "
-              f"prec={results['f1_opt_precision']:.2f})",
-    )
-    ax.axvline(
-        results["recall80_recall"], color="tomato", linestyle="--",
-        label=f"80%-recall (prec={results['recall80_precision']:.2f})",
-    )
-    ax.set_xlabel("Recall")
-    ax.set_ylabel("Precision")
-    ax.set_title("Precision-Recall Curve — Test Set")
-    ax.legend(loc="upper right")
-    ax.grid(alpha=0.3)
-    mlflow.log_figure(fig, "pr_curve.png")
-    plt.close(fig)
+        # Artifact: PR curve with both threshold markers
+        p_curve, r_curve, _ = results["pr_curve"]
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(r_curve, p_curve, lw=2, label=f"PR-AUC = {results['pr_auc']:.4f}")
+        ax.axvline(
+            results["f1_opt_recall"], color="steelblue", linestyle="--",
+            label=f"F1-opt  (recall={results['f1_opt_recall']:.2f}, "
+                  f"prec={results['f1_opt_precision']:.2f})",
+        )
+        ax.axvline(
+            results["recall80_recall"], color="tomato", linestyle="--",
+            label=f"80%-recall (prec={results['recall80_precision']:.2f})",
+        )
+        ax.set_xlabel("Recall")
+        ax.set_ylabel("Precision")
+        ax.set_title("Precision-Recall Curve — Test Set")
+        ax.legend(loc="upper right")
+        ax.grid(alpha=0.3)
+        mlflow.log_figure(fig, "pr_curve.png")
+        plt.close(fig)
 
-    # Artifact: top-20 feature importances
-    fig2, ax2 = plt.subplots(figsize=(10, 7))
-    top = importance_df.head(20)
-    ax2.barh(top["feature"][::-1], top["importance"][::-1], color="steelblue")
-    ax2.set_xlabel("Gain Importance")
-    ax2.set_title("Top-20 Feature Importances")
-    ax2.grid(axis="x", alpha=0.3)
-    mlflow.log_figure(fig2, "feature_importance.png")
-    plt.close(fig2)
+        # Artifact: top-20 feature importances
+        fig2, ax2 = plt.subplots(figsize=(10, 7))
+        top = importance_df.head(20)
+        ax2.barh(top["feature"][::-1], top["importance"][::-1], color="steelblue")
+        ax2.set_xlabel("Gain Importance")
+        ax2.set_title("Top-20 Feature Importances")
+        ax2.grid(axis="x", alpha=0.3)
+        mlflow.log_figure(fig2, "feature_importance.png")
+        plt.close(fig2)
 
-    # Artifact: fitted Pipeline (encoder state + booster in one object)
-    mlflow.sklearn.log_model(
-        sk_model=pipeline,
-        artifact_path="pipeline",
-        input_example=X_train_sample,
-    )
+        # Artifact: fitted Pipeline (encoder state + booster in one object)
+        mlflow.sklearn.log_model(
+            sk_model=pipeline,
+            artifact_path="pipeline",
+            input_example=X_train_sample,
+        )
 
-    # Local copy — used by the API (DagsHub free tier drops large pickle uploads)
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(pipeline, MODEL_PATH)
-    mlflow.log_artifact(str(MODEL_PATH), artifact_path="local")
+        mlflow.log_artifact(str(MODEL_PATH), artifact_path="local")
+
+    except Exception as e:
+        print(f"  WARNING: MLflow remote logging failed — {e}")
+        print("  Local model and metrics are valid; DagsHub tracking skipped.")
 
 
 # ---------------------------------------------------------------------------

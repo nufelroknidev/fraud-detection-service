@@ -3,7 +3,7 @@ Velocity and behavioural feature engineering for CNP fraud detection.
 
 These features capture the rapid-fire card activity that distinguishes
 a fraudster burning through a compromised card from normal spending:
-  - Rolling counts/sums over 1 h and 24 h per card
+  - Rolling counts/sums over 1 h, 6 h, 24 h, and 7 d per card
   - Merchant-level velocity over 1 h
   - Time elapsed since the card's previous transaction
   - Amount deviation from the card's 30-day baseline
@@ -28,9 +28,9 @@ def _to_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _card_velocity(df: pd.DataFrame) -> pd.DataFrame:
-    """Per-card rolling transaction count and amount sum for 1 h and 24 h."""
+    """Per-card rolling transaction count and amount sum for 1 h, 6 h, 24 h, and 7 d."""
     grp = df.groupby("card_id", sort=False)
-    for window in ("1h", "24h"):
+    for window in ("1h", "6h", "24h", "7d"):
         rolled = grp["amount_gbp"].rolling(window, closed="left", min_periods=0)
         df[f"card_txn_count_{window}"] = (
             rolled.count().reset_index(level=0, drop=True).astype(int)

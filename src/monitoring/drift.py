@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import joblib
 import pandas as pd
 from evidently import Dataset, Report
 from evidently.metrics import DriftedColumnsCount, ValueDrift
@@ -28,6 +29,20 @@ from evidently.metrics import DriftedColumnsCount, ValueDrift
 PROJECT_ROOT = Path(__file__).parents[2]
 DATA_PATH    = PROJECT_ROOT / "data" / "processed" / "transactions_featured.csv"
 REPORT_DIR   = PROJECT_ROOT / "results" / "drift"
+MODEL_PATH   = PROJECT_ROOT / "models" / "pipeline.pkl"
+
+# All model input features — used to compute prediction scores for output drift monitoring
+_SCORE_FEATURE_COLS = [
+    "amount_gbp", "hour_of_day", "day_of_week", "card_avg_amount_30d",
+    "card_txn_count_1h", "card_amount_sum_1h",
+    "card_txn_count_6h", "card_amount_sum_6h",
+    "card_txn_count_24h", "card_amount_sum_24h",
+    "card_txn_count_7d", "card_amount_sum_7d",
+    "merch_txn_count_1h", "time_since_last_card_txn_sec",
+    "amount_to_card_avg_ratio", "log_amount",
+    "hour_sin", "hour_cos", "dow_sin", "dow_cos",
+    "merchant_category",
+]
 
 PSI_INVESTIGATE = 0.10
 PSI_RETRAIN     = 0.20
@@ -38,8 +53,12 @@ MONITORED_FEATURES = [
     "card_avg_amount_30d",
     "card_txn_count_1h",
     "card_amount_sum_1h",
+    "card_txn_count_6h",
+    "card_amount_sum_6h",
     "card_txn_count_24h",
     "card_amount_sum_24h",
+    "card_txn_count_7d",
+    "card_amount_sum_7d",
     "merch_txn_count_1h",
     "time_since_last_card_txn_sec",
     "amount_to_card_avg_ratio",
@@ -87,10 +106,25 @@ def run_drift_report(
     print(f"Reference window : {len(ref_df):,} rows")
     print(f"Current window   : {len(cur_df):,} rows")
 
-    ref_ds = Dataset.from_pandas(ref_df[MONITORED_FEATURES])
-    cur_ds = Dataset.from_pandas(cur_df[MONITORED_FEATURES])
+    # Optionally add model output score as a monitored column
+    score_available = False
+    if MODEL_PATH.exists():
+        try:
+            pipeline = joblib.load(MODEL_PATH)
+            ref_df = ref_df.copy()
+            cur_df = cur_df.copy()
+            ref_df["prediction_score"] = pipeline.predict_proba(ref_df[_SCORE_FEATURE_COLS])[:, 1]
+            cur_df["prediction_score"] = pipeline.predict_proba(cur_df[_SCORE_FEATURE_COLS])[:, 1]
+            score_available = True
+            print("Score monitoring : enabled (prediction_score added)")
+        except Exception as e:
+            print(f"Score monitoring : skipped — {e}")
 
-    metrics = [ValueDrift(column=col, method="psi") for col in MONITORED_FEATURES]
+    monitor_cols = MONITORED_FEATURES + (["prediction_score"] if score_available else [])
+    ref_ds = Dataset.from_pandas(ref_df[monitor_cols])
+    cur_ds = Dataset.from_pandas(cur_df[monitor_cols])
+
+    metrics = [ValueDrift(column=col, method="psi") for col in monitor_cols]
     metrics.append(DriftedColumnsCount(method="psi", threshold=PSI_INVESTIGATE))
 
     report = Report(metrics=metrics)

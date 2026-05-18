@@ -1,4 +1,12 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+
+class FeatureContribution(BaseModel):
+    feature: str
+    shap_value: float  # log-odds; positive = pushes toward fraud
+    direction: Literal["increases_risk", "decreases_risk"]
 
 
 class PredictRequest(BaseModel):
@@ -11,8 +19,12 @@ class PredictRequest(BaseModel):
     # Card velocity (pre-computed by caller's streaming layer)
     card_txn_count_1h: int = Field(..., ge=0)
     card_amount_sum_1h: float = Field(..., ge=0)
+    card_txn_count_6h: int = Field(..., ge=0)
+    card_amount_sum_6h: float = Field(..., ge=0)
     card_txn_count_24h: int = Field(..., ge=0)
     card_amount_sum_24h: float = Field(..., ge=0)
+    card_txn_count_7d: int = Field(..., ge=0)
+    card_amount_sum_7d: float = Field(..., ge=0)
 
     # Merchant velocity
     merch_txn_count_1h: int = Field(..., ge=0)
@@ -40,3 +52,4 @@ class PredictResponse(BaseModel):
     recall80_decision: str     # "REVIEW" or "PASS"  — high-recall operating point
     f1_opt_threshold: float
     recall80_threshold: float
+    top_features: list[FeatureContribution]  # top 3 by |shap_value|

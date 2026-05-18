@@ -26,8 +26,12 @@ def _valid_payload(**overrides) -> dict:
         "card_avg_amount_30d": 60.0,
         "card_txn_count_1h": 1,
         "card_amount_sum_1h": 45.50,
+        "card_txn_count_6h": 2,
+        "card_amount_sum_6h": 90.0,
         "card_txn_count_24h": 3,
         "card_amount_sum_24h": 120.0,
+        "card_txn_count_7d": 15,
+        "card_amount_sum_7d": 500.0,
         "merch_txn_count_1h": 50,
         "time_since_last_card_txn_sec": 14400.0,
         "amount_to_card_avg_ratio": 0.758,
@@ -82,6 +86,11 @@ def test_predict_returns_valid_response(client):
     assert body["recall80_decision"] in ("REVIEW", "PASS")
     assert "f1_opt_threshold" in body
     assert "recall80_threshold" in body
+    assert len(body["top_features"]) == 3
+    for feat in body["top_features"]:
+        assert isinstance(feat["feature"], str)
+        assert isinstance(feat["shap_value"], float)
+        assert feat["direction"] in ("increases_risk", "decreases_risk")
 
 
 def test_predict_missing_field_returns_422(client):

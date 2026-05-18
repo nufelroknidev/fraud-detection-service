@@ -14,10 +14,11 @@ from pathlib import Path
 import joblib
 import mlflow.sklearn
 import pandas as pd
+import shap
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 
-from src.api.schema import PredictRequest, PredictResponse
+from src.api.schema import FeatureContribution, PredictRequest, PredictResponse
 from src.tracking import init_mlflow
 
 load_dotenv()
@@ -33,8 +34,12 @@ FEATURE_COLS = [
     "card_avg_amount_30d",
     "card_txn_count_1h",
     "card_amount_sum_1h",
+    "card_txn_count_6h",
+    "card_amount_sum_6h",
     "card_txn_count_24h",
     "card_amount_sum_24h",
+    "card_txn_count_7d",
+    "card_amount_sum_7d",
     "merch_txn_count_1h",
     "time_since_last_card_txn_sec",
     "amount_to_card_avg_ratio",
@@ -67,6 +72,10 @@ async def lifespan(app: FastAPI):
         _state["pipeline"] = mlflow.sklearn.load_model(f"runs:/{run_id}/pipeline")
     else:
         raise RuntimeError("No model found: set MLFLOW_RUN_ID or provide models/pipeline.pkl")
+
+    pipeline = _state["pipeline"]
+    _state["explainer"] = shap.TreeExplainer(pipeline.named_steps["classifier"])
+    _state["feature_names"] = list(pipeline.named_steps["preprocessor"].get_feature_names_out())
 
     # Fetch thresholds from MLflow if a run ID is available; fall back to
     # the committed values from the training run otherwise.
@@ -120,7 +129,32 @@ def predict(request: PredictRequest):
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     df = pd.DataFrame([request.model_dump()])[FEATURE_COLS]
-    prob = float(pipeline.predict_proba(df)[0, 1])
+
+    # Run preprocessor once; feed encoded array to both classifier and explainer.
+    preprocessor = pipeline.named_steps["preprocessor"]
+    classifier   = pipeline.named_steps["classifier"]
+    X_enc = preprocessor.transform(df)
+    prob  = float(classifier.predict_proba(X_enc)[0, 1])
+
+    sv = _state["explainer"].shap_values(X_enc)
+    if isinstance(sv, list):  # older shap returns [class0, class1]
+        sv = sv[1]
+    shap_row = sv[0]
+
+    ranked = sorted(
+        zip(_state["feature_names"], shap_row.tolist()),
+        key=lambda x: abs(x[1]),
+        reverse=True,
+    )[:3]
+
+    top_features = [
+        FeatureContribution(
+            feature=name,
+            shap_value=round(float(val), 6),
+            direction="increases_risk" if val > 0 else "decreases_risk",
+        )
+        for name, val in ranked
+    ]
 
     thr_f1  = _state["threshold_f1_opt"]
     thr_80r = _state["threshold_recall80"]
@@ -131,4 +165,5 @@ def predict(request: PredictRequest):
         recall80_decision="REVIEW" if prob >= thr_80r else "PASS",
         f1_opt_threshold=thr_f1,
         recall80_threshold=thr_80r,
+        top_features=top_features,
     )
