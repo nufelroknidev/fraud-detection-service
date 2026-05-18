@@ -9,7 +9,7 @@ import math
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.main import app, _state
+from src.api.main import app
 
 
 @pytest.fixture(scope="module")

@@ -182,8 +182,8 @@ curl -X POST http://localhost:8000/predict \
     "time_since_last_card_txn_sec": 120.0,
     "amount_to_card_avg_ratio": 7.5,
     "log_amount": 6.109,
-    "hour_sin": 0.9749,
-    "hour_cos": -0.2225,
+    "hour_sin": -0.5,
+    "hour_cos": -0.866,
     "dow_sin": 0.7818,
     "dow_cos": 0.6235,
     "merchant_category": "electronics"
