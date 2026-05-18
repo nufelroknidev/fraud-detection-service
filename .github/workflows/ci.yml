@@ -88,7 +88,7 @@ jobs:
               "card_merch_txn_count_1h": 0,
               "time_since_last_card_txn_sec": 14400.0,
               "amount_to_card_avg_ratio": 0.758,
-              "log_amount": 3.8286,
+              "log_amount": 3.8394,
               "hour_sin": 0.9749,
               "hour_cos": -0.2225,
               "dow_sin": 0.7818,
